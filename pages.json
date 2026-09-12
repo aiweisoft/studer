@@ -1,0 +1,59 @@
+{
+	"pages": [
+		{
+			"path": "pages/index/index",
+			"style": {
+				"navigationBarTitleText": "今日学习"
+			}
+		},
+		{
+			"path": "pages/plan/plan",
+			"style": {
+				"navigationBarTitleText": "学习计划"
+			}
+		},
+		{
+			"path": "pages/subject/subject",
+			"style": {
+				"navigationBarTitleText": "学习科目"
+			}
+		},
+		{
+			"path": "pages/stats/stats",
+			"style": {
+				"navigationBarTitleText": "学习统计"
+			}
+		}
+	],
+	"globalStyle": {
+		"navigationBarTextStyle": "black",
+		"navigationBarTitleText": "Studer",
+		"navigationBarBackgroundColor": "#F8F8F8",
+		"backgroundColor": "#F8F8F8"
+	},
+	"tabBar": {
+		"color": "#999",
+		"selectedColor": "#667eea",
+		"backgroundColor": "#fff",
+		"borderStyle": "black",
+		"list": [
+			{
+				"pagePath": "pages/index/index",
+				"text": "今日"
+			},
+			{
+				"pagePath": "pages/plan/plan",
+				"text": "计划"
+			},
+			{
+				"pagePath": "pages/subject/subject",
+				"text": "科目"
+			},
+			{
+				"pagePath": "pages/stats/stats",
+				"text": "统计"
+			}
+		]
+	},
+	"uniIdRouter": {}
+}

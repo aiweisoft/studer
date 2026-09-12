@@ -2,10 +2,11 @@
   <view class="page">
     <view class="header">
       <text class="page-title">学习计划</text>
+      <text class="preset-entry" @click="showPreset = true">推荐计划</text>
     </view>
 
     <view v-if="plans.length === 0" class="empty">
-      <image class="empty-img" src="" mode="aspectFit"></image>
+      <image class="empty-img" src="/static/studyplan_logo_path_512.png" mode="aspectFit"></image>
       <text class="empty-text">还没有学习计划，创建一个吧！</text>
     </view>
 
@@ -27,15 +28,19 @@
       </view>
     </view>
 
-    <view class="fab" @click="showForm = true; editingPlan = null">
+    <view class="fab" @click="openForm">
       <text class="fab-icon">+</text>
     </view>
 
     <view v-if="showForm" class="modal-mask" @click="showForm = false">
       <view class="modal" @click.stop>
         <text class="modal-title">{{ editingPlan ? '编辑计划' : '新建计划' }}</text>
-        <input class="modal-input" v-model="form.title" placeholder="计划名称" />
-        <input class="modal-input" v-model="form.description" placeholder="计划描述（可选）" />
+        <view class="input-wrap">
+          <input class="modal-input" v-model="form.title" placeholder="计划名称" />
+        </view>
+        <view class="input-wrap">
+          <input class="modal-input" v-model="form.description" placeholder="计划描述（可选）" />
+        </view>
         <view class="modal-row">
           <text>开始日期</text>
           <picker mode="date" :value="form.startDate" @change="e => form.startDate = e.detail.value">
@@ -50,11 +55,31 @@
         </view>
         <view class="modal-row">
           <text>每日目标(小时)</text>
-          <input class="modal-input-sm" v-model="form.targetHours" type="digit" placeholder="如 2" />
+          <view class="input-wrap-sm">
+            <input class="modal-input-sm" v-model="form.targetHours" type="digit" placeholder="如 2" />
+          </view>
         </view>
         <view class="modal-actions">
           <button class="btn-cancel" @click="showForm = false">取消</button>
           <button class="btn-confirm" @click="confirmPlan">确定</button>
+        </view>
+      </view>
+    </view>
+
+    <view v-if="showPreset" class="modal-mask" @click="showPreset = false">
+      <view class="modal" @click.stop>
+        <text class="modal-title">选择人群，一键生成推荐计划</text>
+        <view class="preset-list">
+          <view v-for="p in presets" :key="p.key" class="preset-item" @click="usePreset(p)">
+            <view class="preset-icon" :style="{ background: p.color }">{{ p.icon }}</view>
+            <view class="preset-info">
+              <text class="preset-name">{{ p.name }}</text>
+              <text class="preset-summary">{{ p.summary }}</text>
+            </view>
+          </view>
+        </view>
+        <view class="modal-actions">
+          <button class="btn-cancel" @click="showPreset = false">关闭</button>
         </view>
       </view>
     </view>
@@ -65,9 +90,12 @@
 import { ref } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
 import { getPlans, getRecordsByPlan, savePlan, deletePlan } from '../../utils/storage'
+import { PLAN_PRESETS, applyPreset } from '../../utils/presets'
 
+const presets = PLAN_PRESETS
 const plans = ref([])
 const showForm = ref(false)
+const showPreset = ref(false)
 const editingPlan = ref(null)
 const form = ref({
   title: '',
@@ -81,6 +109,13 @@ function loadPlans() {
   plans.value = getPlans()
 }
 
+function usePreset(preset) {
+  applyPreset(preset)
+  showPreset.value = false
+  loadPlans()
+  uni.showToast({ title: preset.name + '计划已生成', icon: 'success' })
+}
+
 function getProgress(plan) {
   const records = getRecordsByPlan(plan.id)
   const totalMin = records.reduce((s, r) => s + r.duration, 0) / 60
@@ -89,6 +124,12 @@ function getProgress(plan) {
   const expectedMin = totalDays * plan.targetHours * 60
   if (expectedMin === 0) return 0
   return Math.min(Math.round((totalMin / expectedMin) * 100), 100)
+}
+
+function openForm() {
+  editingPlan.value = null
+  form.value = { title: '', description: '', startDate: '', endDate: '', targetHours: '2' }
+  showForm.value = true
 }
 
 function editPlan(plan) {
@@ -150,6 +191,16 @@ onShow(() => {
 }
 .header {
   margin-bottom: 30rpx;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.preset-entry {
+  font-size: 26rpx;
+  color: #667eea;
+  padding: 8rpx 20rpx;
+  background: #eef1ff;
+  border-radius: 30rpx;
 }
 .page-title {
   font-size: 40rpx;
@@ -280,20 +331,24 @@ onShow(() => {
   display: block;
   text-align: center;
 }
+.input-wrap {
+  background: #f5f7fa;
+  border-radius: 12rpx;
+  padding: 20rpx 24rpx;
+  margin-bottom: 20rpx;
+}
 .modal-input {
   width: 100%;
-  padding: 20rpx 24rpx;
+  font-size: 28rpx;
+}
+.input-wrap-sm {
   background: #f5f7fa;
   border-radius: 12rpx;
-  font-size: 28rpx;
-  margin-bottom: 20rpx;
-  box-sizing: border-box;
+  padding: 16rpx 20rpx;
+  width: 160rpx;
 }
 .modal-input-sm {
-  width: 120rpx;
-  padding: 16rpx 20rpx;
-  background: #f5f7fa;
-  border-radius: 12rpx;
+  width: 100%;
   font-size: 28rpx;
   text-align: center;
 }
@@ -329,5 +384,46 @@ onShow(() => {
   color: #fff;
   border-radius: 12rpx;
   font-size: 28rpx;
+}
+
+.preset-list {
+  max-height: 660rpx;
+  overflow-y: auto;
+}
+.preset-item {
+  display: flex;
+  align-items: center;
+  gap: 20rpx;
+  padding: 20rpx 0;
+  border-bottom: 1rpx solid #f0f0f0;
+}
+.preset-item:last-child {
+  border-bottom: none;
+}
+.preset-icon {
+  width: 72rpx;
+  height: 72rpx;
+  border-radius: 16rpx;
+  color: #fff;
+  font-size: 32rpx;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.preset-info {
+  display: flex;
+  flex-direction: column;
+}
+.preset-name {
+  font-size: 30rpx;
+  font-weight: 600;
+  color: #333;
+}
+.preset-summary {
+  font-size: 24rpx;
+  color: #999;
+  margin-top: 4rpx;
 }
 </style>

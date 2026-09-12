@@ -34,7 +34,7 @@ function getWeekRange() {
   const dayOfWeek = now.getDay() || 7
   const start = new Date(now)
   start.setDate(now.getDate() - dayOfWeek + 1)
-  const end = new Date(now)
+  const end = new Date(start)
   end.setDate(start.getDate() + 6)
   const fmt = d => {
     const y = d.getFullYear()

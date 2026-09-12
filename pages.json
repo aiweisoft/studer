@@ -39,19 +39,27 @@
 		"list": [
 			{
 				"pagePath": "pages/index/index",
-				"text": "今日"
+				"text": "今日",
+				"iconPath": "static/tabbar/home.png",
+				"selectedIconPath": "static/tabbar/home-active.png"
 			},
 			{
 				"pagePath": "pages/plan/plan",
-				"text": "计划"
+				"text": "计划",
+				"iconPath": "static/tabbar/plan.png",
+				"selectedIconPath": "static/tabbar/plan-active.png"
 			},
 			{
 				"pagePath": "pages/subject/subject",
-				"text": "科目"
+				"text": "科目",
+				"iconPath": "static/tabbar/subject.png",
+				"selectedIconPath": "static/tabbar/subject-active.png"
 			},
 			{
 				"pagePath": "pages/stats/stats",
-				"text": "统计"
+				"text": "统计",
+				"iconPath": "static/tabbar/stats.png",
+				"selectedIconPath": "static/tabbar/stats-active.png"
 			}
 		]
 	},

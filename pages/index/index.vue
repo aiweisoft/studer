@@ -8,24 +8,36 @@
     <view class="progress-card">
       <view class="progress-circle">
         <view class="progress-center">
-          <text class="progress-hours">{{ todayHours }}</text>
-          <text class="progress-label">今日已学(小时)</text>
+          <text class="progress-hours">{{ todayStat.value }}</text>
+          <text class="progress-label">今日已学({{ todayStat.unit }})</text>
         </view>
       </view>
     </view>
 
     <view class="timer-section">
-      <view class="section-title">学习计时</view>
-      <view class="timer-display">{{ timerDisplay }}</view>
+      <view class="section-title">专注倒计时</view>
+      <view class="duration-chips">
+        <view v-for="m in durationOptions" :key="m" class="chip"
+          :class="{ active: targetMinutes === m, disabled: timerRunning }" @click="selectDuration(m)">
+          {{ m }} 分钟
+        </view>
+        <view class="chip" :class="{ active: isCustom, disabled: timerRunning }" @click="openCustom">
+          {{ isCustom ? targetMinutes + ' 分钟' : '自定义' }}
+        </view>
+      </view>
+      <view class="timer-display" :class="{ running: timerRunning }">{{ timerDisplay }}</view>
+      <text class="timer-hint">{{ timerHint }}</text>
       <view class="timer-controls">
-        <picker :range="subjectList" :range-key="'name'" @change="onSubjectChange">
+        <picker :range="subjectList" :range-key="'name'" @change="onSubjectChange" :disabled="timerRunning">
           <view class="picker-btn">{{ selectedSubject ? selectedSubject.name : '选择科目' }}</view>
         </picker>
-        <input class="content-input" v-model="studyContent" placeholder="输入学习内容" />
+        <view class="content-input-wrap">
+          <input class="content-input" v-model="studyContent" placeholder="输入学习内容（必填）" :disabled="timerRunning" />
+        </view>
       </view>
       <view class="timer-actions">
-        <button v-if="!timerRunning" class="btn-start" @click="startTimer">开始学习</button>
-        <button v-else class="btn-stop" @click="stopTimer">结束学习</button>
+        <button v-if="!timerRunning" class="btn-start" @click="startTimer">开始专注</button>
+        <button v-else class="btn-stop" @click="stopTimer">结束</button>
       </view>
     </view>
 
@@ -37,10 +49,37 @@
       <view v-for="r in todayRecords" :key="r.id" class="record-item">
         <view class="record-subject" :style="{ background: getSubjectColor(r.subjectId) }"></view>
         <view class="record-info">
-          <text class="record-content">{{ r.content || getSubjectName(r.subjectId) }}</text>
-          <text class="record-time">{{ formatRecordTime(r) }}</text>
+          <view class="record-head">
+            <text class="record-subject-name">{{ getSubjectName(r.subjectId) }}</text>
+            <text class="record-time">{{ formatRecordTime(r) }}</text>
+          </view>
+          <text class="record-content">{{ r.content || '未填写学习内容' }}</text>
         </view>
         <text class="record-duration">{{ formatDuration(r.duration) }}</text>
+      </view>
+    </view>
+
+    <view v-if="showCustom" class="modal-mask" @click="showCustom = false">
+      <view class="modal" @click.stop>
+        <text class="modal-title">自定义时长</text>
+        <view class="custom-stepper">
+          <view class="step-btn" :class="{ disabled: customDraft <= 1 }" @click="stepCustom(-1)">-</view>
+          <view class="custom-value">
+            <text class="custom-num">{{ customDraft }}</text>
+            <text class="custom-unit">分钟</text>
+          </view>
+          <view class="step-btn" :class="{ disabled: customDraft >= 60 }" @click="stepCustom(1)">+</view>
+        </view>
+        <slider :min="1" :max="60" :value="customDraft" activeColor="#667eea" backgroundColor="#e5e7f0"
+          block-size="28" @changing="onCustomChanging" @change="onCustomChanging" />
+        <view class="custom-range">
+          <text>1 分钟</text>
+          <text>60 分钟</text>
+        </view>
+        <view class="modal-actions">
+          <button class="btn-cancel" @click="showCustom = false">取消</button>
+          <button class="btn-confirm" @click="confirmCustom">确定</button>
+        </view>
       </view>
     </view>
   </view>
@@ -51,14 +90,19 @@ import { ref, computed } from 'vue'
 import { onShow, onUnload } from '@dcloudio/uni-app'
 import { getRecordsByDate, getSubjects, getRecords, saveRecord, formatDuration, getTodayStr } from '../../utils/storage'
 
-const todayStr = getTodayStr()
+const todayStr = ref(getTodayStr())
 const todayRecords = ref([])
 const subjectList = ref([])
 const selectedSubjectId = ref('')
 const studyContent = ref('')
 const timerRunning = ref(false)
-const timerStartTime = ref(null)
-const elapsedSeconds = ref(0)
+const durationOptions = [15, 25, 45, 60]
+const targetMinutes = ref(25)
+const remainingSeconds = ref(25 * 60)
+const timerEndTime = ref(null)
+const showCustom = ref(false)
+const customDraft = ref(30)
+let timerStartTimestamp = null
 let timerInterval = null
 
 const weekdays = ['日', '一', '二', '三', '四', '五', '六']
@@ -79,15 +123,27 @@ const selectedSubject = computed(() => {
   return subjectList.value.find(s => s.id === selectedSubjectId.value)
 })
 
-const todayHours = computed(() => {
+const todayStat = computed(() => {
   const total = todayRecords.value.reduce((sum, r) => sum + r.duration, 0)
-  const h = (total / 3600).toFixed(1)
-  return h
+  if (total === 0) return { value: 0, unit: '分钟' }
+  if (total >= 3600) return { value: (total / 3600).toFixed(1), unit: '小时' }
+  if (total >= 60) return { value: Math.round(total / 60), unit: '分钟' }
+  return { value: total, unit: '秒' }
 })
 
 const timerDisplay = computed(() => {
-  return formatDuration(elapsedSeconds.value)
+  return formatDuration(remainingSeconds.value)
 })
+
+const timerHint = computed(() => {
+  if (timerRunning.value) {
+    const done = targetMinutes.value * 60 - remainingSeconds.value
+    return `专注中 · 已完成 ${Math.max(0, Math.floor(done / 60))} 分钟`
+  }
+  return `已选 ${targetMinutes.value} 分钟`
+})
+
+const isCustom = computed(() => !durationOptions.includes(targetMinutes.value))
 
 function getSubjectColor(id) {
   const s = subjectList.value.find(s => s.id === id)
@@ -111,45 +167,111 @@ function onSubjectChange(e) {
   selectedSubjectId.value = subjectList.value[e.detail.value]?.id || ''
 }
 
+function selectDuration(m) {
+  if (timerRunning.value) return
+  targetMinutes.value = m
+  remainingSeconds.value = m * 60
+}
+
+function openCustom() {
+  if (timerRunning.value) return
+  customDraft.value = targetMinutes.value >= 1 && targetMinutes.value <= 60 ? targetMinutes.value : 30
+  showCustom.value = true
+}
+
+function onCustomChanging(e) {
+  customDraft.value = Math.min(60, Math.max(1, parseInt(e.detail.value, 10) || 1))
+}
+
+function stepCustom(delta) {
+  customDraft.value = Math.min(60, Math.max(1, Number(customDraft.value) + delta))
+}
+
+function confirmCustom() {
+  const v = Math.min(60, Math.max(1, Number(customDraft.value) || 25))
+  targetMinutes.value = v
+  remainingSeconds.value = v * 60
+  showCustom.value = false
+}
+
 function startTimer() {
   if (!selectedSubjectId.value) {
     uni.showToast({ title: '请选择科目', icon: 'none' })
     return
   }
+  if (!studyContent.value.trim()) {
+    uni.showToast({ title: '请输入学习内容', icon: 'none' })
+    return
+  }
   timerRunning.value = true
-  timerStartTime.value = Date.now()
-  timerInterval = setInterval(() => {
-    elapsedSeconds.value = Math.floor((Date.now() - timerStartTime.value) / 1000)
-  }, 1000)
+  timerStartTimestamp = Date.now()
+  timerEndTime.value = timerStartTimestamp + targetMinutes.value * 60 * 1000
+  remainingSeconds.value = targetMinutes.value * 60
+  timerInterval = setInterval(tick, 1000)
+}
+
+function tick() {
+  const left = Math.max(0, Math.round((timerEndTime.value - Date.now()) / 1000))
+  remainingSeconds.value = left
+  if (left <= 0) completeTimer()
+}
+
+function completeTimer() {
+  clearInterval(timerInterval)
+  timerRunning.value = false
+  saveCurrentRecord(targetMinutes.value * 60)
+  remainingSeconds.value = targetMinutes.value * 60
+  notifyDone()
 }
 
 function stopTimer() {
-  timerRunning.value = false
   clearInterval(timerInterval)
-  const record = {
+  timerRunning.value = false
+  const used = targetMinutes.value * 60 - remainingSeconds.value
+  if (used > 0) {
+    saveCurrentRecord(used)
+    uni.showToast({ title: '学习记录已保存', icon: 'success' })
+  } else {
+    uni.showToast({ title: '时长过短，未记录', icon: 'none' })
+  }
+  remainingSeconds.value = targetMinutes.value * 60
+}
+
+function saveCurrentRecord(duration) {
+  if (duration <= 0) return
+  saveRecord({
     planId: '',
     subjectId: selectedSubjectId.value,
-    content: studyContent.value,
-    startTime: new Date(timerStartTime.value).toISOString(),
+    content: studyContent.value.trim(),
+    startTime: new Date(timerStartTimestamp).toISOString(),
     endTime: new Date().toISOString(),
-    duration: elapsedSeconds.value,
-    date: todayStr
-  }
-  saveRecord(record)
+    duration,
+    date: todayStr.value
+  })
   studyContent.value = ''
-  elapsedSeconds.value = 0
   loadRecords()
-  uni.showToast({ title: '学习记录已保存', icon: 'success' })
+}
+
+function notifyDone() {
+  if (uni.vibrateLong) uni.vibrateLong()
+  uni.showModal({
+    title: '专注完成',
+    content: `已完成 ${targetMinutes.value} 分钟专注学习，休息一下吧！`,
+    showCancel: false,
+    confirmText: '好的',
+    confirmColor: '#667eea'
+  })
 }
 
 function loadRecords() {
-  todayRecords.value = getRecordsByDate(todayStr).sort((a, b) => {
+  todayRecords.value = getRecordsByDate(todayStr.value).sort((a, b) => {
     return new Date(b.startTime).getTime() - new Date(a.startTime).getTime()
   })
   subjectList.value = getSubjects()
 }
 
 onShow(() => {
+  todayStr.value = getTodayStr()
   loadRecords()
 })
 
@@ -225,13 +347,46 @@ onUnload(() => {
   margin-bottom: 30rpx;
   box-shadow: 0 2rpx 12rpx rgba(0,0,0,0.06);
 }
+.duration-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16rpx;
+  margin-bottom: 10rpx;
+}
+.chip {
+  min-width: 128rpx;
+  text-align: center;
+  padding: 16rpx 20rpx;
+  background: #f5f7fa;
+  border-radius: 12rpx;
+  font-size: 26rpx;
+  color: #666;
+}
+.chip.active {
+  background: #eef1ff;
+  color: #667eea;
+  font-weight: 600;
+}
+.chip.disabled {
+  opacity: 0.45;
+}
 .timer-display {
-  font-size: 72rpx;
+  font-size: 80rpx;
   font-weight: 700;
   color: #333;
   text-align: center;
   font-variant-numeric: tabular-nums;
-  margin: 20rpx 0;
+  margin: 20rpx 0 6rpx;
+}
+.timer-display.running {
+  color: #667eea;
+}
+.timer-hint {
+  display: block;
+  text-align: center;
+  font-size: 24rpx;
+  color: #999;
+  margin-bottom: 20rpx;
 }
 .timer-controls {
   display: flex;
@@ -246,11 +401,14 @@ onUnload(() => {
   color: #666;
   white-space: nowrap;
 }
-.content-input {
+.content-input-wrap {
   flex: 1;
-  padding: 16rpx 24rpx;
   background: #f5f7fa;
   border-radius: 12rpx;
+  padding: 16rpx 24rpx;
+}
+.content-input {
+  width: 100%;
   font-size: 28rpx;
 }
 .timer-actions {
@@ -304,14 +462,23 @@ onUnload(() => {
 .record-info {
   flex: 1;
 }
+.record-head {
+  display: flex;
+  align-items: center;
+  gap: 12rpx;
+}
+.record-subject-name {
+  font-size: 26rpx;
+  font-weight: 600;
+  color: #667eea;
+}
+.record-time {
+  font-size: 22rpx;
+  color: #999;
+}
 .record-content {
   font-size: 28rpx;
   color: #333;
-  display: block;
-}
-.record-time {
-  font-size: 24rpx;
-  color: #999;
   margin-top: 4rpx;
   display: block;
 }
@@ -320,5 +487,97 @@ onUnload(() => {
   color: #667eea;
   font-weight: 600;
   font-variant-numeric: tabular-nums;
+}
+
+.modal-mask {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0,0,0,0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+.modal {
+  background: #fff;
+  border-radius: 20rpx;
+  padding: 40rpx;
+  width: 600rpx;
+}
+.modal-title {
+  font-size: 34rpx;
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 24rpx;
+  display: block;
+  text-align: center;
+}
+.custom-stepper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 40rpx;
+  margin-bottom: 10rpx;
+}
+.step-btn {
+  width: 72rpx;
+  height: 72rpx;
+  border-radius: 50%;
+  background: #eef1ff;
+  color: #667eea;
+  font-size: 44rpx;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.step-btn.disabled {
+  opacity: 0.35;
+}
+.custom-value {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  min-width: 180rpx;
+}
+.custom-num {
+  font-size: 72rpx;
+  font-weight: 700;
+  color: #667eea;
+  font-variant-numeric: tabular-nums;
+}
+.custom-unit {
+  font-size: 28rpx;
+  color: #999;
+  margin-left: 8rpx;
+}
+.custom-range {
+  display: flex;
+  justify-content: space-between;
+  font-size: 22rpx;
+  color: #999;
+  margin-bottom: 10rpx;
+}
+.modal-actions {
+  display: flex;
+  gap: 20rpx;
+  margin-top: 30rpx;
+}
+.btn-cancel {
+  flex: 1;
+  background: #f0f0f0;
+  color: #666;
+  border-radius: 12rpx;
+  font-size: 28rpx;
+}
+.btn-confirm {
+  flex: 1;
+  background: #667eea;
+  color: #fff;
+  border-radius: 12rpx;
+  font-size: 28rpx;
 }
 </style>

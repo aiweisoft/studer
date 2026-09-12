@@ -22,14 +22,16 @@
       </view>
     </view>
 
-    <view class="fab" @click="showForm = true; editingSubject = null">
+    <view class="fab" @click="openForm">
       <text class="fab-icon">+</text>
     </view>
 
     <view v-if="showForm" class="modal-mask" @click="showForm = false">
       <view class="modal" @click.stop>
         <text class="modal-title">{{ editingSubject ? '编辑科目' : '添加科目' }}</text>
-        <input class="modal-input" v-model="form.name" placeholder="科目名称（如 英语、数学）" />
+        <view class="input-wrap">
+          <input class="modal-input" v-model="form.name" placeholder="科目名称（如 英语、数学）" />
+        </view>
         <view class="color-picker">
           <text>选择颜色</text>
           <view class="color-options">
@@ -74,6 +76,12 @@ function getTotalHours(id) {
   const records = getRecordsBySubject(id)
   const total = records.reduce((s, r) => s + r.duration, 0)
   return (total / 3600).toFixed(1)
+}
+
+function openForm() {
+  editingSubject.value = null
+  form.value = { name: '', color: '#667eea' }
+  showForm.value = true
 }
 
 function editSubject(subject) {
@@ -231,14 +239,15 @@ onShow(() => {
   display: block;
   text-align: center;
 }
-.modal-input {
-  width: 100%;
-  padding: 20rpx 24rpx;
+.input-wrap {
   background: #f5f7fa;
   border-radius: 12rpx;
-  font-size: 28rpx;
+  padding: 20rpx 24rpx;
   margin-bottom: 20rpx;
-  box-sizing: border-box;
+}
+.modal-input {
+  width: 100%;
+  font-size: 28rpx;
 }
 .color-picker {
   margin-bottom: 20rpx;

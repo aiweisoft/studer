@@ -91,9 +91,11 @@
 <script setup>
 import { ref, computed } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
-import { getRecords, getSubjects, getRecordsByRange, getWeekRangeStr, getMonthRangeStr, getTodayStr } from '../../utils/storage'
+import { getRecords, getSubjects, getWeekRangeStr, getMonthRangeStr, getTodayStr } from '../../utils/storage'
 
 const activeTab = ref('week')
+const allRecords = ref([])
+const subjects = ref([])
 const tabs = [
   { key: 'today', label: '今日' },
   { key: 'week', label: '本周' },
@@ -134,13 +136,14 @@ function fmtShort(seconds) {
 }
 
 const filteredRecords = computed(() => {
+  const records = allRecords.value
   if (activeTab.value === 'today') {
     const d = getTodayStr()
-    return getRecords().filter(r => r.date === d)
+    return records.filter(r => r.date === d)
   }
   const range = getRange()
-  if (!range.start) return getRecords()
-  return getRecordsByRange(range.start, range.end)
+  if (!range.start) return records
+  return records.filter(r => r.date >= range.start && r.date <= range.end)
 })
 
 const summary = computed(() => {
@@ -157,14 +160,14 @@ const summary = computed(() => {
 
 const subjectStats = computed(() => {
   const records = filteredRecords.value
-  const subjects = getSubjects()
+  const list = subjects.value
   const map = {}
   records.forEach(r => {
     map[r.subjectId] = (map[r.subjectId] || 0) + r.duration
   })
   const totalSeconds = Object.values(map).reduce((s, v) => s + v, 0)
   return Object.entries(map).map(([id, seconds]) => {
-    const sub = subjects.find(s => s.id === id)
+    const sub = list.find(s => s.id === id)
     return {
       id,
       name: sub ? sub.name : '未分类',
@@ -178,7 +181,7 @@ const subjectStats = computed(() => {
 
 const trend = computed(() => {
   const map = {}
-  getRecords().forEach(r => {
+  allRecords.value.forEach(r => {
     map[r.date] = (map[r.date] || 0) + r.duration
   })
   const today = parseDate(getTodayStr())
@@ -231,7 +234,10 @@ function switchTab(key) {
   activeTab.value = key
 }
 
-onShow(() => {})
+onShow(() => {
+  allRecords.value = getRecords()
+  subjects.value = getSubjects()
+})
 </script>
 
 <style>
@@ -479,5 +485,30 @@ onShow(() => {})
   border-radius: 6rpx;
   background: linear-gradient(90deg, #667eea, #764ba2);
   transition: width 0.3s;
+}
+
+/* ===== 统一视觉规范 ===== */
+.summary-card,
+.chart-section,
+.daily-section {
+  border-radius: 20rpx;
+  box-shadow: 0 4rpx 20rpx rgba(31, 41, 55, 0.06);
+}
+.page-title {
+  font-weight: 700;
+  color: #2b2f3a;
+}
+.section-title {
+  display: flex;
+  align-items: center;
+  color: #2b2f3a;
+}
+.section-title::before {
+  content: '';
+  width: 8rpx;
+  height: 26rpx;
+  margin-right: 12rpx;
+  border-radius: 4rpx;
+  background: linear-gradient(180deg, #667eea, #764ba2);
 }
 </style>

@@ -151,6 +151,13 @@ export function formatDuration(seconds) {
   return `${pad(m)}:${pad(s)}`
 }
 
+export function formatSmart(seconds) {
+  const s = Math.round(seconds)
+  if (s <= 0) return '0分'
+  if (s < 3600) return Math.round(s / 60) + '分'
+  return Math.round((s / 3600) * 10) / 10 + '小时'
+}
+
 export function getTodayStr() {
   return getToday()
 }

@@ -14,6 +14,26 @@
       </view>
     </view>
 
+    <view class="goal-card">
+      <template v-if="activePlans.length">
+        <view class="goal-top">
+          <text class="goal-title">今日学习目标</text>
+          <text class="goal-detail">已完成 {{ formatSmart(todaySeconds) }} / {{ formatSmart(goalSeconds) }}</text>
+        </view>
+        <view class="goal-bar">
+          <view class="goal-fill" :style="{ width: goalPercent + '%' }"></view>
+        </view>
+        <view class="goal-foot">
+          <text v-if="goalRemainingSeconds > 0" class="goal-left">还需学习 {{ formatSmart(goalRemainingSeconds) }}</text>
+          <text v-else class="goal-done">今日目标已达成</text>
+          <text class="goal-plans">{{ activePlans.length }} 个进行中计划</text>
+        </view>
+      </template>
+      <view v-else class="goal-empty">
+        <text>暂无进行中的学习计划，可在「计划」页创建或导入推荐计划</text>
+      </view>
+    </view>
+
     <view class="timer-section">
       <view class="section-title">专注倒计时</view>
       <view class="duration-chips">
@@ -88,7 +108,7 @@
 <script setup>
 import { ref, computed } from 'vue'
 import { onShow, onUnload } from '@dcloudio/uni-app'
-import { getRecordsByDate, getSubjects, getRecords, saveRecord, formatDuration, getTodayStr } from '../../utils/storage'
+import { getRecordsByDate, getSubjects, getPlans, saveRecord, formatDuration, formatSmart, getTodayStr } from '../../utils/storage'
 
 const todayStr = ref(getTodayStr())
 const todayRecords = ref([])
@@ -123,12 +143,36 @@ const selectedSubject = computed(() => {
   return subjectList.value.find(s => s.id === selectedSubjectId.value)
 })
 
+const todaySeconds = computed(() => {
+  return todayRecords.value.reduce((sum, r) => sum + r.duration, 0)
+})
+
 const todayStat = computed(() => {
-  const total = todayRecords.value.reduce((sum, r) => sum + r.duration, 0)
+  const total = todaySeconds.value
   if (total === 0) return { value: 0, unit: '分钟' }
   if (total >= 3600) return { value: (total / 3600).toFixed(1), unit: '小时' }
   if (total >= 60) return { value: Math.round(total / 60), unit: '分钟' }
   return { value: total, unit: '秒' }
+})
+
+const activePlans = computed(() => {
+  const today = todayStr.value
+  return getPlans().filter(p => {
+    const startOk = !p.startDate || p.startDate <= today
+    const endOk = !p.endDate || p.endDate >= today
+    return startOk && endOk
+  })
+})
+
+const goalSeconds = computed(() => {
+  return activePlans.value.reduce((sum, p) => sum + (Number(p.targetHours) || 0) * 3600, 0)
+})
+
+const goalRemainingSeconds = computed(() => Math.max(0, goalSeconds.value - todaySeconds.value))
+
+const goalPercent = computed(() => {
+  if (goalSeconds.value <= 0) return 0
+  return Math.min(100, Math.round((todaySeconds.value / goalSeconds.value) * 100))
 })
 
 const timerDisplay = computed(() => {
@@ -331,6 +375,67 @@ onUnload(() => {
 .progress-label {
   font-size: 24rpx;
   color: rgba(255,255,255,0.8);
+}
+
+.goal-card {
+  background: #fff;
+  border-radius: 16rpx;
+  padding: 30rpx;
+  margin-bottom: 30rpx;
+  box-shadow: 0 2rpx 12rpx rgba(0,0,0,0.06);
+}
+.goal-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 16rpx;
+}
+.goal-title {
+  font-size: 30rpx;
+  font-weight: 600;
+  color: #333;
+}
+.goal-detail {
+  font-size: 24rpx;
+  color: #999;
+}
+.goal-bar {
+  height: 16rpx;
+  background: #f0f2f7;
+  border-radius: 8rpx;
+  overflow: hidden;
+}
+.goal-fill {
+  height: 100%;
+  border-radius: 8rpx;
+  background: linear-gradient(90deg, #667eea, #764ba2);
+  transition: width 0.3s;
+}
+.goal-foot {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 16rpx;
+}
+.goal-left {
+  font-size: 26rpx;
+  color: #e67e22;
+  font-weight: 600;
+}
+.goal-done {
+  font-size: 26rpx;
+  color: #2ecc71;
+  font-weight: 600;
+}
+.goal-plans {
+  font-size: 24rpx;
+  color: #999;
+}
+.goal-empty {
+  text-align: center;
+  color: #999;
+  font-size: 26rpx;
+  padding: 10rpx 0;
 }
 
 .section-title {

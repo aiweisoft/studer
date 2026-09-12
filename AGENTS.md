@@ -6,7 +6,7 @@
 
 - 类型：uni-app 项目，Vue 3 + `<script setup>` 组合式 API。
 - 构建工具：HBuilderX（本项目由 HBuilderX 5.24 管理），**仓库内没有 `package.json` / `node_modules` / Vite 配置**，不要尝试 `npm install` 或 `npm run`。
-- 应用主题：学习时间管理（学习计划 / 学习科目 / 学习计时 / 学习统计）。
+- 应用主题：学习时间管理（学习计划 / 学习科目 / 番茄钟专注 / 学习统计）。
 - 数据来源：全部为设备本地存储，无后端、无 uniCloud、无网络请求。
 - 语言：界面文案、注释、提交信息统一使用中文。
 
@@ -16,26 +16,29 @@
 studer/
 ├── App.vue                     # 应用根组件 + 全局样式（页面背景、button/input 重置）
 ├── main.js                     # 应用入口，Vue3 createSSRApp
-├── pages.json                  # 页面路由 + 全局样式 + 底部 tabBar 配置
+├── pages.json                  # 页面路由 + 全局样式 + 底部 tabBar 配置（图标 + 文字）
 ├── manifest.json               # 应用标识、平台打包配置（app-plus / mp-weixin 等）
 ├── uni.scss                    # uni-app 内置 SCSS 变量（一般不改动）
 ├── index.html                  # H5 模板
 ├── uni.promisify.adaptor.js    # uni API Promise 化适配器（勿删）
 ├── utils/
-│   └── storage.js              # 唯一的业务数据层：本地存储 CRUD + 统计工具
+│   ├── storage.js              # 唯一的业务数据层：本地存储 CRUD + 统计/时间工具
+│   └── presets.js              # 5 类人群推荐计划模板 + applyPreset 导入逻辑
 ├── pages/                      # 页面，每个页面一个同名目录
-│   ├── index/index.vue         # 「今日」：今日进度、学习计时器、今日记录
-│   ├── plan/plan.vue           # 「计划」：学习计划增删改 + 进度
+│   ├── index/index.vue         # 「今日」：番茄钟倒计时、今日概览、今日记录
+│   ├── plan/plan.vue           # 「计划」：计划增删改 + 进度 + 推荐计划导入
 │   ├── subject/subject.vue     # 「科目」：学习科目分类管理
-│   └── stats/stats.vue         # 「统计」：周/月/全部学习数据看板
+│   └── stats/stats.vue         # 「统计」：今日/本周/本月/全部学习数据看板
 ├── static/                     # 静态资源（图片等），路径以 /static 开头引用
+│   └── tabbar/                 # tabBar 图标（普通 + 选中态）
 └── unpackage/                  # 编译产物与缓存，git 已忽略，勿手动编辑
 ```
 
 约定：
 - 新增页面：`pages/<name>/<name>.vue`，并在 `pages.json` 的 `pages` 与（若需显示）`tabBar.list` 中同步登记。
 - 新增数据实体：在 `utils/storage.js` 中扩展，页面不直接调用 `uni.setStorageSync`。
-- 静态资源放入 `static/`，页面内用绝对路径 `/static/xxx.png` 引用。
+- 新增人群推荐模板：在 `utils/presets.js` 的 `PLAN_PRESETS` 中扩展，通过 `applyPreset` 落地（按名称/标题去重）。
+- 静态资源放入 `static/`，页面内用绝对路径 `/static/xxx.png` 引用；tabBar 图标放 `static/tabbar/`。
 
 ## 3. 构建 / 运行 / 测试命令
 
@@ -63,6 +66,8 @@ studer/
 - 统一使用 `<script setup>`，`ref` 存可变状态，`computed` 存派生数据。
 - 页面数据在 `onShow` 中重新加载，保证从其他 tab 返回时列表/统计是最新的。
 - 计时器等需要清理的资源，在 `onUnload` 中 `clearInterval`，避免内存泄漏。
+- 倒计时以「结束时间戳」为准（`timerEndTime - Date.now()`），切后台/返回后仍准确，不要用累加计数。
+- 应用内提醒用 `uni.showModal` + `uni.vibrateLong()`（调用前判空），不使用系统本地通知。
 - 组件模板保持简洁，复杂逻辑放到 `methods`/函数中。
 
 ### 4.3 命名
@@ -78,14 +83,18 @@ studer/
 - 使用 `<style>`（非 scoped）配合页面根类名（`.`）隔离；单位统一使用 `rpx`。
 - 主题色：主色 `#667eea`，渐变 `linear-gradient(135deg, #667eea, #764ba2)`；成功/危险色沿用 `#2ecc71` / `#e74c3c`。
 - 卡片风格：白底 + `border-radius: 16rpx` + 轻微阴影，页面背景 `#f5f7fa`。
-- **H5 兼容硬约束：不要给 `input` / `textarea` 设置 `box-sizing: border-box`**（无论在全局、页面还是行内样式），否则可能导致输入框无法聚焦或无法输入。
+- **H5 兼容硬约束：不要给 `input` / `textarea` 设置 `box-sizing: border-box`**（无论在全局、页面还是行内样式），否则可能导致输入框无法聚焦或无法输入。需要内边距/背景时改用外层 `view` 包裹输入框。
+- 输入类控件统一用外层 `view`（如 `.input-wrap`）承载 padding/背景/圆角，`input` 仅设 `width: 100%` 与字号。
+- 底部 tabBar 图标为 `static/tabbar/*.png`（81×81），在 `pages.json` 中通过 `iconPath` / `selectedIconPath` 引用。
 
-### 4.5 数据层（utils/storage.js）
+### 4.5 数据层（utils/storage.js / utils/presets.js）
 
 - 存储键统一加前缀 `studer_`，集中定义在 `KEYS` 对象中。
 - 对外暴露具名函数：`getXxx` / `saveXxx` / `deleteXxx` / `getRecordsByRange` 等；`saveXxx` 对新增（无 `id`）自动生成 `id` 与 `createdAt`。
 - 数据以 JSON 字符串存入 `uni.getStorageSync` / `uni.setStorageSync`，读取失败时返回空数组，不抛出异常。
-- 时长统一以「秒」为单位存储，展示时用 `formatDuration` / 除以 3600 换算。
+- 时长统一以「秒」为单位存储；展示分两种：`formatDuration`（计时器用 `MM:SS`）与自适应单位（统计用，秒/分/小时）。
+- 日期区间：`getWeekRange` 以**周一**为起点，`end` 必须基于 `start` 推算（不可基于 `now`，否则跨月会算错）；`getMonthRange` 用 `new Date(y, m+1, 0)` 取当月最后一天。
+- `presets.js` 的 `applyPreset(preset)` 会按名称/标题去重后写入科目与计划，起止日期以当天为起点按 `durationDays` 计算。
 
 ### 4.6 错误处理与用户反馈
 

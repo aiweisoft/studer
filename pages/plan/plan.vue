@@ -10,22 +10,23 @@
       <text class="empty-text">还没有学习计划，创建一个吧！</text>
     </view>
 
-    <view v-for="plan in plans" :key="plan.id" class="plan-card" @click="editPlan(plan)">
+    <view v-for="plan in planViews" :key="plan.id" class="plan-card" @click="editPlan(plan)">
       <view class="plan-header">
         <text class="plan-title">{{ plan.title }}</text>
         <text class="plan-delete" @click.stop="removePlan(plan.id)">删除</text>
       </view>
       <text class="plan-desc" v-if="plan.description">{{ plan.description }}</text>
       <view class="plan-meta">
-        <text class="plan-period">{{ plan.startDate }} ~ {{ plan.endDate }}</text>
+        <text class="plan-period">{{ plan.rangeStart }} ~ {{ plan.rangeEnd }}</text>
         <text class="plan-target">每日目标: {{ plan.targetHours }}h</text>
       </view>
       <view class="plan-progress">
         <view class="progress-bar">
-          <view class="progress-fill" :style="{ width: getProgress(plan) + '%' }"></view>
+          <view class="progress-fill" :style="{ width: plan.progress + '%' }"></view>
         </view>
-        <text class="progress-text">{{ getProgress(plan) }}%</text>
+        <text class="progress-text">{{ plan.progress }}%</text>
       </view>
+      <text class="plan-done">已学 {{ plan.doneText }} · 目标 {{ plan.goalText }}</text>
     </view>
 
     <view class="fab" @click="openForm">
@@ -67,8 +68,9 @@
     </view>
 
     <view v-if="showPreset" class="modal-mask" @click="showPreset = false">
-      <view class="modal" @click.stop>
-        <text class="modal-title">选择人群，一键生成推荐计划</text>
+      <view class="modal preset-modal" @click.stop>
+        <text class="modal-title">一键生成推荐计划</text>
+        <text class="preset-tip">选择你的人群，自动创建对应科目与学习计划</text>
         <view class="preset-list">
           <view v-for="p in presets" :key="p.key" class="preset-item" @click="usePreset(p)">
             <view class="preset-icon" :style="{ background: p.color }">{{ p.icon }}</view>
@@ -76,6 +78,7 @@
               <text class="preset-name">{{ p.name }}</text>
               <text class="preset-summary">{{ p.summary }}</text>
             </view>
+            <text class="preset-arrow">›</text>
           </view>
         </view>
         <view class="modal-actions">
@@ -87,9 +90,9 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { onShow } from '@dcloudio/uni-app'
-import { getPlans, getRecordsByPlan, savePlan, deletePlan } from '../../utils/storage'
+import { getPlans, getRecordsByRange, savePlan, deletePlan, getTodayStr } from '../../utils/storage'
 import { PLAN_PRESETS, applyPreset } from '../../utils/presets'
 
 const presets = PLAN_PRESETS
@@ -116,15 +119,59 @@ function usePreset(preset) {
   uni.showToast({ title: preset.name + '计划已生成', icon: 'success' })
 }
 
-function getProgress(plan) {
-  const records = getRecordsByPlan(plan.id)
-  const totalMin = records.reduce((s, r) => s + r.duration, 0) / 60
-  const totalDays = records.length
-  if (totalDays === 0 || !plan.targetHours) return 0
-  const expectedMin = totalDays * plan.targetHours * 60
-  if (expectedMin === 0) return 0
-  return Math.min(Math.round((totalMin / expectedMin) * 100), 100)
+function parseDate(s) {
+  const [y, m, d] = s.split('-').map(Number)
+  return new Date(y, m - 1, d)
 }
+
+function fmtDate(d) {
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
+
+function getPlanRange(plan) {
+  let start = plan.startDate
+  if (!start && plan.createdAt) start = fmtDate(new Date(plan.createdAt))
+  if (!start) start = getTodayStr()
+  let end = plan.endDate
+  if (!end) {
+    const d = parseDate(start)
+    d.setDate(d.getDate() + 29)
+    end = fmtDate(d)
+  }
+  return { start, end }
+}
+
+function diffDays(start, end) {
+  const s = parseDate(start)
+  const e = parseDate(end)
+  return Math.max(1, Math.round((e - s) / 86400000) + 1)
+}
+
+function fmtHours(seconds) {
+  const h = seconds / 3600
+  if (h <= 0) return '0h'
+  return (Math.round(h * 10) / 10) + 'h'
+}
+
+const planViews = computed(() => {
+  return plans.value.map(plan => {
+    const { start, end } = getPlanRange(plan)
+    const seconds = getRecordsByRange(start, end).reduce((s, r) => s + r.duration, 0)
+    const goalSeconds = (Number(plan.targetHours) || 0) * 3600 * diffDays(start, end)
+    const progress = goalSeconds > 0 ? Math.min(100, Math.round((seconds / goalSeconds) * 100)) : 0
+    return {
+      ...plan,
+      rangeStart: start,
+      rangeEnd: end,
+      progress,
+      doneText: fmtHours(seconds),
+      goalText: fmtHours(goalSeconds)
+    }
+  })
+})
 
 function openForm() {
   editingPlan.value = null
@@ -201,6 +248,67 @@ onShow(() => {
   padding: 8rpx 20rpx;
   background: #eef1ff;
   border-radius: 30rpx;
+}
+.preset-modal {
+  padding: 36rpx 30rpx 30rpx;
+}
+.preset-tip {
+  display: block;
+  text-align: center;
+  font-size: 22rpx;
+  color: #999;
+  margin: -12rpx 0 24rpx;
+}
+.preset-list {
+  max-height: 680rpx;
+  overflow-y: auto;
+}
+.preset-item {
+  display: flex;
+  align-items: center;
+  gap: 20rpx;
+  padding: 20rpx;
+  margin-bottom: 16rpx;
+  background: #f7f8fc;
+  border-radius: 16rpx;
+}
+.preset-item:last-child {
+  margin-bottom: 0;
+}
+.preset-icon {
+  width: 88rpx;
+  height: 88rpx;
+  border-radius: 22rpx;
+  color: #fff;
+  font-size: 36rpx;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  box-shadow: 0 6rpx 16rpx rgba(31, 41, 55, 0.15);
+}
+.preset-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.preset-name {
+  font-size: 30rpx;
+  font-weight: 600;
+  color: #2b2f3a;
+}
+.preset-summary {
+  font-size: 23rpx;
+  color: #8a90a0;
+  margin-top: 6rpx;
+}
+.preset-arrow {
+  font-size: 40rpx;
+  color: #c0c4d0;
+  line-height: 1;
+  flex-shrink: 0;
 }
 .page-title {
   font-size: 40rpx;
@@ -284,6 +392,12 @@ onShow(() => {
   font-size: 24rpx;
   color: #667eea;
   font-weight: 600;
+}
+.plan-done {
+  display: block;
+  font-size: 22rpx;
+  color: #999;
+  margin-top: 10rpx;
 }
 
 .fab {
@@ -371,59 +485,33 @@ onShow(() => {
   gap: 20rpx;
   margin-top: 30rpx;
 }
-.btn-cancel {
+.btn-cancel, .btn-confirm {
   flex: 1;
+  height: 84rpx;
+  line-height: 84rpx;
+  border-radius: 12rpx;
+  font-size: 30rpx;
+  text-align: center;
+}
+.btn-cancel {
   background: #f0f0f0;
   color: #666;
-  border-radius: 12rpx;
-  font-size: 28rpx;
 }
 .btn-confirm {
-  flex: 1;
   background: #667eea;
   color: #fff;
-  border-radius: 12rpx;
-  font-size: 28rpx;
 }
 
-.preset-list {
-  max-height: 660rpx;
-  overflow-y: auto;
+/* ===== 统一视觉规范 ===== */
+.plan-card {
+  border-radius: 20rpx;
+  box-shadow: 0 4rpx 20rpx rgba(31, 41, 55, 0.06);
 }
-.preset-item {
-  display: flex;
-  align-items: center;
-  gap: 20rpx;
-  padding: 20rpx 0;
-  border-bottom: 1rpx solid #f0f0f0;
+.modal {
+  border-radius: 24rpx;
 }
-.preset-item:last-child {
-  border-bottom: none;
-}
-.preset-icon {
-  width: 72rpx;
-  height: 72rpx;
-  border-radius: 16rpx;
-  color: #fff;
-  font-size: 32rpx;
-  font-weight: 600;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-.preset-info {
-  display: flex;
-  flex-direction: column;
-}
-.preset-name {
-  font-size: 30rpx;
-  font-weight: 600;
-  color: #333;
-}
-.preset-summary {
-  font-size: 24rpx;
-  color: #999;
-  margin-top: 4rpx;
+.page-title {
+  font-weight: 700;
+  color: #2b2f3a;
 }
 </style>

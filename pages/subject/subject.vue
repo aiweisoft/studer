@@ -274,18 +274,33 @@ onShow(() => {
   gap: 20rpx;
   margin-top: 30rpx;
 }
-.btn-cancel {
+.btn-cancel, .btn-confirm {
   flex: 1;
+  height: 84rpx;
+  line-height: 84rpx;
+  border-radius: 12rpx;
+  font-size: 30rpx;
+  text-align: center;
+}
+.btn-cancel {
   background: #f0f0f0;
   color: #666;
-  border-radius: 12rpx;
-  font-size: 28rpx;
 }
 .btn-confirm {
-  flex: 1;
   background: #667eea;
   color: #fff;
-  border-radius: 12rpx;
-  font-size: 28rpx;
+}
+
+/* ===== 统一视觉规范 ===== */
+.subject-card {
+  border-radius: 20rpx;
+  box-shadow: 0 4rpx 20rpx rgba(31, 41, 55, 0.06);
+}
+.modal {
+  border-radius: 24rpx;
+}
+.page-title {
+  font-weight: 700;
+  color: #2b2f3a;
 }
 </style>

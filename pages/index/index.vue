@@ -113,6 +113,7 @@ import { getRecordsByDate, getSubjects, getPlans, saveRecord, formatDuration, fo
 const todayStr = ref(getTodayStr())
 const todayRecords = ref([])
 const subjectList = ref([])
+const plans = ref([])
 const selectedSubjectId = ref('')
 const studyContent = ref('')
 const timerRunning = ref(false)
@@ -157,7 +158,7 @@ const todayStat = computed(() => {
 
 const activePlans = computed(() => {
   const today = todayStr.value
-  return getPlans().filter(p => {
+  return plans.value.filter(p => {
     const startOk = !p.startDate || p.startDate <= today
     const endOk = !p.endDate || p.endDate >= today
     return startOk && endOk
@@ -312,6 +313,7 @@ function loadRecords() {
     return new Date(b.startTime).getTime() - new Date(a.startTime).getTime()
   })
   subjectList.value = getSubjects()
+  plans.value = getPlans()
 }
 
 onShow(() => {
@@ -671,18 +673,61 @@ onUnload(() => {
   gap: 20rpx;
   margin-top: 30rpx;
 }
-.btn-cancel {
+.btn-cancel, .btn-confirm {
   flex: 1;
+  height: 84rpx;
+  line-height: 84rpx;
+  border-radius: 12rpx;
+  font-size: 30rpx;
+  text-align: center;
+}
+.btn-cancel {
   background: #f0f0f0;
   color: #666;
-  border-radius: 12rpx;
-  font-size: 28rpx;
 }
 .btn-confirm {
-  flex: 1;
   background: #667eea;
   color: #fff;
-  border-radius: 12rpx;
-  font-size: 28rpx;
+}
+
+/* ===== 统一视觉规范 ===== */
+.progress-card {
+  border-radius: 24rpx;
+  box-shadow: 0 8rpx 24rpx rgba(102, 126, 234, 0.25);
+}
+.goal-card,
+.timer-section,
+.records-section {
+  border-radius: 20rpx;
+  box-shadow: 0 4rpx 20rpx rgba(31, 41, 55, 0.06);
+}
+.modal {
+  border-radius: 24rpx;
+}
+.section-title {
+  display: flex;
+  align-items: center;
+  font-size: 30rpx;
+  font-weight: 600;
+  color: #2b2f3a;
+}
+.section-title::before {
+  content: '';
+  width: 8rpx;
+  height: 28rpx;
+  margin-right: 14rpx;
+  border-radius: 4rpx;
+  background: linear-gradient(180deg, #667eea, #764ba2);
+}
+.btn-start,
+.btn-stop {
+  height: 88rpx;
+  line-height: 88rpx;
+  padding: 0;
+}
+.chip,
+.picker-btn,
+.content-input-wrap {
+  border-radius: 14rpx;
 }
 </style>

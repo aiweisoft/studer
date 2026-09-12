@@ -16,6 +16,8 @@
 	/* 全局样式重置 */
 	page {
 		background-color: #f5f7fa;
+		color: #2b2f3a;
+		font-size: 28rpx;
 		font-family: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Helvetica, Arial, sans-serif;
 		box-sizing: border-box;
 	}

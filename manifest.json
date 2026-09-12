@@ -1,7 +1,7 @@
 {
     "name" : "学习计划",
     "appid" : "__UNI__A08B3EC",
-    "description" : "学习规划",
+    "description" : "学习时间管理（学习计划 / 学习科目 / 番茄钟专注 / 学习统计）",
     "versionName" : "1.0.0",
     "versionCode" : "100",
     "transformPx" : false,
